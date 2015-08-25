@@ -35,8 +35,11 @@ bool Stabilizer::track( const cv::Mat& frame)
     
     // Compute optical flow in selected points.
     std::vector<cv::Point2f> currentFeatures;
+    std::vector<cv::Point2f> backwardPoints; //
     std::vector<uchar> state;
+    std::vector<uchar> backwardPointsState; //
     std::vector<float> error;
+    std::vector<float> backwardPointsError; //
     cv::calcOpticalFlowPyrLK(prevFrame, frame, previousFeatures, currentFeatures, state, error);
 
     float median_error = median<float>(error);
@@ -58,11 +61,31 @@ bool Stabilizer::track( const cv::Mat& frame)
     size_t s = good_points.size();
     CV_Assert(s == curr_points.size());
 
-    // Find points shift.
-    std::vector<float> shifts_x(s);
-    std::vector<float> shifts_y(s);
+    cv::calcOpticalFlowPyrLK(frame, prevFrame, curr_points, backwardPoints, backwardPointsState, backwardPointsError);//
+    size_t k = backwardPoints.size();//
 
-    for (size_t i = 0; i < s; ++i)
+    std::vector<float> diff_x(k);
+    std::vector<float> diff_y(k);
+
+    for (size_t i = 0; i < k; ++i)
+    {
+       diff_x[i] = backwardPoints[i].x - curr_points[i].x;
+       diff_y[i] = backwardPoints[i].y - curr_points[i].y;
+    }
+
+    cv::Point2f average_shift(diff_x[k/2], diff_y[k/2]);
+
+    for (size_t i = 0; i < k; ++i)
+    {
+        if ((diff_x[i] <= average_shift.x)&&(diff_y[i] <= average_shift.y))
+            curr_points.erase(curr_points.begin()+ i);
+    }
+
+    // Find points shift.
+    std::vector<float> shifts_x(s);//size = k
+    std::vector<float> shifts_y(s);//size = k
+
+    for (size_t i = 0; i < curr_points.size(); ++i)
     {
         shifts_x[i] = curr_points[i].x - good_points[i].x;
         shifts_y[i] = curr_points[i].y - good_points[i].y;
